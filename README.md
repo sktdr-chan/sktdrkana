@@ -1,0 +1,9 @@
+# sktdrkanaとは？
+Mac Tahoe 26の日本語入力の切り替えは既定値では「Fn」キー単体、もしくは、「Control + Space」です。これを、Shift + Spaceで日本語入力を有効無効にする為のキーリマップツールです。
+
+実装が限定的なので、全てのキーをサポートしていませんが、Shift+Space以外の組み合わせも設定可能です。リマップ後のキーは日本語入力の有効無効の既定値である「Control + Space」ですが、こちらも同様に変更できます。
+
+# download
+別サイト（作者所有）からダウンロードしてくだい。
+- https://blog.sktdr.com/?p=1072
+- https://kana.sktdr.com/
