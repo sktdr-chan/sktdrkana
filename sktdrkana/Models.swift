@@ -24,7 +24,8 @@ struct UserDefaultsManager {
         sourceModifiers: "sourceModifiers",
         sourceKey: "sourceKey",
         targetModifiers: "targetModifiers",
-        targetKey: "targetKey"
+        targetKey: "targetKey",
+        reverseMouseScroll: "reverseMouseScroll"
     )
     
     static func save(mapping: KeyMapping) {
@@ -33,6 +34,14 @@ struct UserDefaultsManager {
         defaults.set(Int(mapping.sourceKey), forKey: keys.sourceKey)
         defaults.set(Int(mapping.targetModifiers.rawValue), forKey: keys.targetModifiers)
         defaults.set(Int(mapping.targetKey), forKey: keys.targetKey)
+    }
+    
+    static func saveReverseMouseScroll(_ enabled: Bool) {
+        UserDefaults.standard.set(enabled, forKey: keys.reverseMouseScroll)
+    }
+    
+    static func loadReverseMouseScroll() -> Bool {
+        return UserDefaults.standard.bool(forKey: keys.reverseMouseScroll)
     }
     
     static func load() -> KeyMapping {

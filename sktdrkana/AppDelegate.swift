@@ -7,12 +7,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var keyRemapper: KeyRemapper?
     private var isEnabled = true
     private var currentMapping: KeyMapping = KeyMapping.defaultMapping
+    private var reverseMouseScroll = false
     private var settingsWindow: NSWindow?
     private var aboutWindow: NSWindow?
     private var workspaceObserver: NSObjectProtocol?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         currentMapping = UserDefaultsManager.load()
+        reverseMouseScroll = UserDefaultsManager.loadReverseMouseScroll()
         
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         
@@ -24,6 +26,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         setupMenu()
         
         keyRemapper = KeyRemapper(mapping: currentMapping)
+        keyRemapper?.setReverseMouseScroll(reverseMouseScroll)
         
         workspaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification,
@@ -94,6 +97,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             keyEquivalent: ""
         )
         settingsMenu.addItem(keyMappingItem)
+        
+        let reverseScrollItem = NSMenuItem(
+            title: "マウスのスクロールの向きを逆にする",
+            action: #selector(toggleReverseMouseScroll),
+            keyEquivalent: ""
+        )
+        reverseScrollItem.state = reverseMouseScroll ? .on : .off
+        settingsMenu.addItem(reverseScrollItem)
         
         settingsMenu.addItem(NSMenuItem.separator())
         
@@ -277,6 +288,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         keyRemapper?.setXcodeOnly(newState == .on)
     }
     
+    @objc private func toggleReverseMouseScroll(_ sender: NSMenuItem) {
+        reverseMouseScroll.toggle()
+        sender.state = reverseMouseScroll ? .on : .off
+        UserDefaultsManager.saveReverseMouseScroll(reverseMouseScroll)
+        keyRemapper?.setReverseMouseScroll(reverseMouseScroll)
+    }
+    
     @objc private func toggleLaunchAtLogin(_ sender: NSMenuItem) {
         if #available(macOS 13.0, *) {
             let service = SMAppService.mainApp
@@ -442,6 +460,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             self.keyRemapper = KeyRemapper(mapping: self.currentMapping)
             self.keyRemapper?.setFrontmostBundleID(NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
             self.keyRemapper?.setXcodeOnly((self.statusItem?.menu?.items.first { $0.title == "設定" }?.submenu?.items.first { $0.title == "Xcode専用モード" }?.state ?? .off) == .on)
+            self.keyRemapper?.setReverseMouseScroll(self.reverseMouseScroll)
             self.keyRemapper?.setEnabled(self.isEnabled)
             self.keyRemapper?.start()
             

@@ -9,6 +9,7 @@ class KeyRemapper {
     
     private var isEnabled = true
     private var xcodeOnly = false
+    private var reverseMouseScroll = false
     private var mapping: KeyMapping
     
     private let stateQueue = DispatchQueue(label: "KeyRemapper.state.queue", qos: .userInteractive)
@@ -34,7 +35,7 @@ class KeyRemapper {
         let runLoop = CFRunLoopGetCurrent()
         self.tapRunLoop = runLoop
         
-        let eventMask = (1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.keyUp.rawValue)
+        let eventMask = (1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.keyUp.rawValue) | (1 << CGEventType.scrollWheel.rawValue)
         guard let eventTap = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
             place: .headInsertEventTap,
@@ -84,6 +85,26 @@ class KeyRemapper {
             }
             if bundleID != "com.apple.dt.Xcode" {
                 return Unmanaged.passUnretained(event)
+            }
+        }
+        
+        // スクロールイベントの処理
+        if type == .scrollWheel && reverseMouseScroll {
+            // マウスイベントのみを反転（Trackpadは除外）
+            // イベントソースの判定: タブレットポインタデバイス(Trackpad)は除外
+            let isContinuous = event.getIntegerValueField(.scrollWheelEventIsContinuous) == 1
+            if !isContinuous {  // マウスのスクロールホイール
+                guard let newEvent = event.copy() else {
+                    return Unmanaged.passUnretained(event)
+                }
+                
+                let deltaY = event.getIntegerValueField(.scrollWheelEventDeltaAxis1)
+                newEvent.setIntegerValueField(.scrollWheelEventDeltaAxis1, value: -deltaY)
+                
+                let fixedPtDeltaY = event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1)
+                newEvent.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1, value: -fixedPtDeltaY)
+                
+                return Unmanaged.passRetained(newEvent)
             }
         }
         
@@ -138,6 +159,10 @@ class KeyRemapper {
     
     func setXcodeOnly(_ enabled: Bool) {
         xcodeOnly = enabled
+    }
+    
+    func setReverseMouseScroll(_ enabled: Bool) {
+        reverseMouseScroll = enabled
     }
     
     func setFrontmostBundleID(_ id: String?) {
