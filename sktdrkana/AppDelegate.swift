@@ -339,7 +339,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     
     @objc private func openKeyMappingSettings() {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 900, height: 400),
+            contentRect: NSRect(x: 0, y: 0, width: 720, height: 400),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -367,14 +367,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             yPosition -= 60  // 2行分のスペース + 5ドット増
         }
         
-        let saveButton = NSButton(frame: NSRect(x: 800, y: 15, width: 80, height: 30))
+        let saveButton = NSButton(frame: NSRect(x: 620, y: 15, width: 80, height: 30))
         saveButton.title = "保存"
         saveButton.bezelStyle = .rounded
         saveButton.target = self
         saveButton.action = #selector(saveMultipleKeyMappings(_:))
         contentView.addSubview(saveButton)
         
-        let cancelButton = NSButton(frame: NSRect(x: 710, y: 15, width: 80, height: 30))
+        let cancelButton = NSButton(frame: NSRect(x: 530, y: 15, width: 80, height: 30))
         cancelButton.title = "キャンセル"
         cancelButton.bezelStyle = .rounded
         cancelButton.target = self
@@ -401,24 +401,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         label.font = NSFont.boldSystemFont(ofSize: 12)
         view.addSubview(label)
         
-        // 1行目：入力 修飾キー1, キー1
+        // 複数の修飾キーを分解
+        let sourceModifiers = KeyCodeMapper.splitModifiers(mapping.sourceModifiers)
+        let targetModifiers = KeyCodeMapper.splitModifiers(mapping.targetModifiers)
+        
+        // ラベル
         let sourceModLabel = NSTextField(labelWithString: "入力:")
         sourceModLabel.frame = NSRect(x: 135, y: 30, width: 40, height: 18)
         view.addSubview(sourceModLabel)
-        
-        let sourceModPopup = NSPopUpButton(frame: NSRect(x: 180, y: 25, width: 95, height: 25))
-        sourceModPopup.addItems(withTitles: ["Shift", "Control", "Command", "Option", "None"])
-        sourceModPopup.selectItem(at: KeyCodeMapper.modifierIndex(mapping.sourceModifiers))
-        sourceModPopup.tag = 100 + index * 8
-        styleNoneInPopup(sourceModPopup)
-        view.addSubview(sourceModPopup)
-        
-        let sourceKeyPopup = NSPopUpButton(frame: NSRect(x: 280, y: 25, width: 95, height: 25))
-        sourceKeyPopup.addItems(withTitles: ["Space", "Return", "Delete", "Escape", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "None"])
-        sourceKeyPopup.selectItem(at: KeyCodeMapper.keyIndex(mapping.sourceKey))
-        sourceKeyPopup.tag = 101 + index * 8
-        styleNoneInPopup(sourceKeyPopup)
-        view.addSubview(sourceKeyPopup)
         
         let arrowLabel = NSTextField(labelWithString: "→")
         arrowLabel.frame = NSRect(x: 380, y: 30, width: 20, height: 18)
@@ -426,53 +416,46 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         arrowLabel.font = NSFont.systemFont(ofSize: 14)
         view.addSubview(arrowLabel)
         
-        // 1行目：出力 修飾キー, キー
         let targetModLabel = NSTextField(labelWithString: "出力:")
         targetModLabel.frame = NSRect(x: 405, y: 30, width: 40, height: 18)
         view.addSubview(targetModLabel)
         
-        let targetModPopup = NSPopUpButton(frame: NSRect(x: 450, y: 25, width: 95, height: 25))
-        targetModPopup.addItems(withTitles: ["Shift", "Control", "Command", "Option", "None"])
-        targetModPopup.selectItem(at: KeyCodeMapper.modifierIndex(mapping.targetModifiers))
-        targetModPopup.tag = 102 + index * 8
-        styleNoneInPopup(targetModPopup)
-        view.addSubview(targetModPopup)
+        // 全ての選択肢（修飾キー + 通常キー）
+        let allKeyTitles = ["Shift", "Control", "Command", "Option", "Space", "Return", "Delete", "Escape", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "None"]
         
-        let targetKeyPopup = NSPopUpButton(frame: NSRect(x: 550, y: 25, width: 95, height: 25))
-        targetKeyPopup.addItems(withTitles: ["Space", "Return", "Delete", "Escape", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "None"])
-        targetKeyPopup.selectItem(at: KeyCodeMapper.keyIndex(mapping.targetKey))
-        targetKeyPopup.tag = 103 + index * 8
-        styleNoneInPopup(targetKeyPopup)
-        view.addSubview(targetKeyPopup)
+        // 1行目：修飾キー＋キー（入力・出力）
+        let row1Items: [(x: Int, selectedIndex: Int, tag: Int)] = [
+            (180, KeyCodeMapper.modifierOrKeyToIndex(sourceModifiers[0], isModifier: true), 100 + index * 8),
+            (280, 4 + KeyCodeMapper.keyIndex(mapping.sourceKey), 101 + index * 8),
+            (450, KeyCodeMapper.modifierOrKeyToIndex(targetModifiers[0], isModifier: true), 102 + index * 8),
+            (550, 4 + KeyCodeMapper.keyIndex(mapping.targetKey), 103 + index * 8)
+        ]
         
-        // 2行目のラベル
-        let mod2Popup = NSPopUpButton(frame: NSRect(x: 180, y: 0, width: 95, height: 25))
-        mod2Popup.addItems(withTitles: ["Space", "Return", "Delete", "Escape", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "None"])
-        mod2Popup.selectItem(at: 30)  // Default: None
-        mod2Popup.tag = 104 + index * 8
-        styleNoneInPopup(mod2Popup)
-        view.addSubview(mod2Popup)
+        for item in row1Items {
+            let popup = NSPopUpButton(frame: NSRect(x: item.x, y: 25, width: 95, height: 25))
+            popup.addItems(withTitles: allKeyTitles)
+            popup.selectItem(at: item.selectedIndex)
+            popup.tag = item.tag
+            styleNoneInPopup(popup)
+            view.addSubview(popup)
+        }
         
-        let key2Popup = NSPopUpButton(frame: NSRect(x: 280, y: 0, width: 95, height: 25))
-        key2Popup.addItems(withTitles: ["Space", "Return", "Delete", "Escape", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "None"])
-        key2Popup.selectItem(at: 30)  // Default: None
-        key2Popup.tag = 105 + index * 8
-        styleNoneInPopup(key2Popup)
-        view.addSubview(key2Popup)
+        // 2行目：追加の修飾キーまたはキー（入力・出力）
+        let row2Items: [(x: Int, selectedIndex: Int, tag: Int)] = [
+            (180, KeyCodeMapper.modifierOrKeyToIndex(sourceModifiers[1], isModifier: true), 104 + index * 8),
+            (280, KeyCodeMapper.modifierOrKeyToIndex(sourceModifiers[2], isModifier: true), 105 + index * 8),
+            (450, KeyCodeMapper.modifierOrKeyToIndex(targetModifiers[1], isModifier: true), 106 + index * 8),
+            (550, KeyCodeMapper.modifierOrKeyToIndex(targetModifiers[2], isModifier: true), 107 + index * 8)
+        ]
         
-        let targetMod2Popup = NSPopUpButton(frame: NSRect(x: 450, y: 0, width: 95, height: 25))
-        targetMod2Popup.addItems(withTitles: ["Shift", "Control", "Command", "Option", "None"])
-        targetMod2Popup.selectItem(at: 4)  // Default: None
-        targetMod2Popup.tag = 106 + index * 8
-        styleNoneInPopup(targetMod2Popup)
-        view.addSubview(targetMod2Popup)
-        
-        let targetKey2Popup = NSPopUpButton(frame: NSRect(x: 550, y: 0, width: 95, height: 25))
-        targetKey2Popup.addItems(withTitles: ["Space", "Return", "Delete", "Escape", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "None"])
-        targetKey2Popup.selectItem(at: 30)  // Default: None
-        targetKey2Popup.tag = 107 + index * 8
-        styleNoneInPopup(targetKey2Popup)
-        view.addSubview(targetKey2Popup)
+        for item in row2Items {
+            let popup = NSPopUpButton(frame: NSRect(x: item.x, y: 0, width: 95, height: 25))
+            popup.addItems(withTitles: allKeyTitles)
+            popup.selectItem(at: item.selectedIndex)
+            popup.tag = item.tag
+            styleNoneInPopup(popup)
+            view.addSubview(popup)
+        }
         
         return view
     }
@@ -501,24 +484,49 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         for index in 0..<4 {
             let checkbox = findButton(in: contentView, tag: 200 + index)
-            let sourceMod = findPopupButton(in: contentView, tag: 100 + index * 8)
-            let sourceKey = findPopupButton(in: contentView, tag: 101 + index * 8)
-            let targetMod = findPopupButton(in: contentView, tag: 102 + index * 8)
-            let targetKey = findPopupButton(in: contentView, tag: 103 + index * 8)
+            let enabled = (checkbox?.state ?? .off) == .on
             
-            if let sourceMod = sourceMod?.titleOfSelectedItem,
-               let sourceKey = sourceKey?.titleOfSelectedItem,
-               let targetMod = targetMod?.titleOfSelectedItem,
-               let targetKey = targetKey?.titleOfSelectedItem,
-               !(sourceMod.isEmpty || sourceKey.isEmpty || targetMod.isEmpty || targetKey.isEmpty),
-               sourceMod != "None" || sourceKey != "None" {
+            // 1行目：入力 修飾キー+キー → 出力 修飾キー+キー
+            let sourceMod1 = findPopupButton(in: contentView, tag: 100 + index * 8)
+            let sourceKey1 = findPopupButton(in: contentView, tag: 101 + index * 8)
+            let targetMod1 = findPopupButton(in: contentView, tag: 102 + index * 8)
+            let targetKey1 = findPopupButton(in: contentView, tag: 103 + index * 8)
+            
+            // 1行目と2行目を組み合わせて修飾キーを構築
+            let sourceMod2Popup = findPopupButton(in: contentView, tag: 104 + index * 8)
+            let sourceMod3Popup = findPopupButton(in: contentView, tag: 105 + index * 8)
+            let targetMod2Popup = findPopupButton(in: contentView, tag: 106 + index * 8)
+            let targetMod3Popup = findPopupButton(in: contentView, tag: 107 + index * 8)
+            
+            if let sourceMod1 = sourceMod1?.titleOfSelectedItem,
+               let sourceKey = sourceKey1?.titleOfSelectedItem,
+               let targetMod1 = targetMod1?.titleOfSelectedItem,
+               let targetKey = targetKey1?.titleOfSelectedItem,
+               !(sourceMod1.isEmpty || sourceKey.isEmpty || targetMod1.isEmpty || targetKey.isEmpty),
+               sourceMod1 != "None" || sourceKey != "None" {
                 
-                let enabled = (checkbox?.state ?? .off) == .on
+                // 入力側の修飾キーを組み合わせる
+                var sourceModifiers = KeyCodeMapper.modifierFlagFromName(sourceMod1)
+                if let sourceMod2 = sourceMod2Popup?.titleOfSelectedItem, sourceMod2 != "None" {
+                    sourceModifiers.insert(KeyCodeMapper.modifierOrKeyFlagFromName(sourceMod2))
+                }
+                if let sourceMod3 = sourceMod3Popup?.titleOfSelectedItem, sourceMod3 != "None" {
+                    sourceModifiers.insert(KeyCodeMapper.modifierOrKeyFlagFromName(sourceMod3))
+                }
+                
+                // 出力側の修飾キーを組み合わせる
+                var targetModifiers = KeyCodeMapper.modifierFlagFromName(targetMod1)
+                if let targetMod2 = targetMod2Popup?.titleOfSelectedItem, targetMod2 != "None" {
+                    targetModifiers.insert(KeyCodeMapper.modifierOrKeyFlagFromName(targetMod2))
+                }
+                if let targetMod3 = targetMod3Popup?.titleOfSelectedItem, targetMod3 != "None" {
+                    targetModifiers.insert(KeyCodeMapper.modifierOrKeyFlagFromName(targetMod3))
+                }
                 
                 let mapping = KeyMapping(
-                    sourceModifiers: KeyCodeMapper.modifierFlagFromName(sourceMod),
+                    sourceModifiers: sourceModifiers,
                     sourceKey: KeyCodeMapper.keyCodeFromName(sourceKey),
-                    targetModifiers: KeyCodeMapper.modifierFlagFromName(targetMod),
+                    targetModifiers: targetModifiers,
                     targetKey: KeyCodeMapper.keyCodeFromName(targetKey),
                     enabled: enabled
                 )

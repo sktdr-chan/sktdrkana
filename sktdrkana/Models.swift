@@ -146,6 +146,83 @@ struct KeyCodeMapper {
         return 4  // None
     }
     
+    // 複数の修飾キーを配列に分解（最大3つ）
+    static func splitModifiers(_ modifiers: CGEventFlags) -> [CGEventFlags] {
+        var result: [CGEventFlags] = []
+        
+        if modifiers.contains(.maskShift) {
+            result.append(.maskShift)
+        }
+        if modifiers.contains(.maskControl) {
+            result.append(.maskControl)
+        }
+        if modifiers.contains(.maskCommand) {
+            result.append(.maskCommand)
+        }
+        if modifiers.contains(.maskAlternate) {
+            result.append(.maskAlternate)
+        }
+        
+        // 3つまでに制限し、足りない分はNone（空）で埋める
+        while result.count < 3 {
+            result.append([])
+        }
+        
+        return Array(result.prefix(3))
+    }
+    
+    // 修飾キーから選択インデックスを取得
+    static func modifierToIndex(_ modifier: CGEventFlags) -> Int {
+        if modifier.contains(.maskShift) { return 0 }
+        if modifier.contains(.maskControl) { return 1 }
+        if modifier.contains(.maskCommand) { return 2 }
+        if modifier.contains(.maskAlternate) { return 3 }
+        return 4  // None
+    }
+    
+    // 修飾キーまたはキーから選択インデックスを取得（2行目用）
+    static func modifierOrKeyToIndex(_ modifier: CGEventFlags, isModifier: Bool) -> Int {
+        // まず修飾キーとしてチェック
+        if modifier.contains(.maskShift) { return 0 }
+        if modifier.contains(.maskControl) { return 1 }
+        if modifier.contains(.maskCommand) { return 2 }
+        if modifier.contains(.maskAlternate) { return 3 }
+        
+        // 空の場合はNone
+        if modifier.isEmpty {
+            return 34  // None at end of list
+        }
+        
+        // 上位ビットにキーコードが格納されている場合
+        let keyCode = CGKeyCode((modifier.rawValue >> 32) & 0xFFFF)
+        if keyCode > 0 && keyCode != 65535 {
+            // キーコードのインデックスを計算（4個の修飾キーの後）
+            return 4 + keyIndex(keyCode)
+        }
+        
+        // それ以外は None
+        return 34
+    }
+    
+    // 選択ボックスの名前から修飾キーまたはキーコードを取得
+    static func modifierOrKeyFlagFromName(_ name: String) -> CGEventFlags {
+        // まず修飾キーとしてチェック
+        switch name {
+        case "Shift": return .maskShift
+        case "Control": return .maskControl
+        case "Command": return .maskCommand
+        case "Option": return .maskAlternate
+        case "None": return []
+        default:
+            // 通常のキーの場合は、キーコードをCGEventFlagsに変換（特殊なエンコード）
+            // rawValueの上位ビットを使用してキーコードを格納
+            let keyCode = keyCodeFromName(name)
+            if keyCode == 65535 { return [] }  // None
+            // キーコードをビットシフトして格納（修飾キーと区別するため）
+            return CGEventFlags(rawValue: CGEventFlags.RawValue(keyCode) << 32)
+        }
+    }
+    
     static func keyIndex(_ keyCode: CGKeyCode) -> Int {
         switch keyCode {
         case 49: return 0   // Space
