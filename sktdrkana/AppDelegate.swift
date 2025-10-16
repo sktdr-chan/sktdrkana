@@ -6,14 +6,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var statusItem: NSStatusItem?
     private var keyRemapper: KeyRemapper?
     private var isEnabled = true
-    private var currentMapping: KeyMapping = KeyMapping.defaultMapping
+    private var currentMappings: [KeyMapping] = []
     private var reverseMouseScroll = false
     private var settingsWindow: NSWindow?
     private var aboutWindow: NSWindow?
     private var workspaceObserver: NSObjectProtocol?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
-        currentMapping = UserDefaultsManager.load()
+        var loadedMappings = UserDefaultsManager.load()
+        
+        // 初回起動時（デフォルトマッピングのみ）の場合、マッピング1のみ有効に
+        if loadedMappings.count == 1 && loadedMappings[0].id == KeyMapping.defaultMapping.id {
+            loadedMappings[0].enabled = true
+        }
+        
+        currentMappings = loadedMappings
         reverseMouseScroll = UserDefaultsManager.loadReverseMouseScroll()
         
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -25,7 +32,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         setupMenu()
         
-        keyRemapper = KeyRemapper(mapping: currentMapping)
+        keyRemapper = KeyRemapper(mappings: currentMappings)
         keyRemapper?.setReverseMouseScroll(reverseMouseScroll)
         
         workspaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
@@ -144,13 +151,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         menu.addItem(NSMenuItem.separator())
         
-        let infoItem = NSMenuItem(
-            title: "\(KeyCodeMapper.modifierName(currentMapping.sourceModifiers))+\(KeyCodeMapper.keyName(currentMapping.sourceKey)) → \(KeyCodeMapper.modifierName(currentMapping.targetModifiers))+\(KeyCodeMapper.keyName(currentMapping.targetKey))",
-            action: nil,
-            keyEquivalent: ""
-        )
-        infoItem.isEnabled = false
-        menu.addItem(infoItem)
+        // 複数マッピングをすべて表示
+        for (index, mapping) in currentMappings.enumerated() {
+            let enabledText = mapping.enabled ? "" : " [無効]"
+            let mappingText = "\(index + 1). \(KeyCodeMapper.modifierName(mapping.sourceModifiers))+\(KeyCodeMapper.keyName(mapping.sourceKey)) → \(KeyCodeMapper.modifierName(mapping.targetModifiers))+\(KeyCodeMapper.keyName(mapping.targetKey))\(enabledText)"
+            let infoItem = NSMenuItem(
+                title: mappingText,
+                action: nil,
+                keyEquivalent: ""
+            )
+            infoItem.isEnabled = false
+            menu.addItem(infoItem)
+        }
         
         menu.addItem(NSMenuItem.separator())
         
@@ -243,7 +255,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         このアプリは、キーボードイベントをリマップするユーティリティです。
         作者sktdrがShift＋Spaceで日本語入力をOn・Offする為に作成しています。
-        初期のリマップ設定: Shift+Space → Control+Space
+        複数のキーマッピング（最大4個）に対応しました。
         
         \(copyright ?? "")
         """
@@ -327,7 +339,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     
     @objc private func openKeyMappingSettings() {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
+            contentRect: NSRect(x: 0, y: 0, width: 900, height: 400),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -340,82 +352,29 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         let contentView = NSView(frame: window.contentView!.bounds)
         
-        let titleLabel = NSTextField(labelWithString: "入力するキーの組み合わせ:")
-        titleLabel.frame = NSRect(x: 20, y: 240, width: 360, height: 20)
+        let titleLabel = NSTextField(labelWithString: "キーマッピング設定（最大4個まで設定可能）")
+        titleLabel.frame = NSRect(x: 20, y: 360, width: 760, height: 20)
         titleLabel.font = NSFont.boldSystemFont(ofSize: 13)
         contentView.addSubview(titleLabel)
         
-        let sourceModifierLabel = NSTextField(labelWithString: "修飾キー:")
-        sourceModifierLabel.frame = NSRect(x: 20, y: 210, width: 80, height: 20)
-        contentView.addSubview(sourceModifierLabel)
+        var yPosition = 305  // 上から 305 の位置から開始
+        // 常に4つのマッピング欄を表示
+        let mappingsToEdit = (currentMappings + Array(repeating: KeyMapping.defaultMapping, count: max(0, 4 - currentMappings.count))).prefix(4)
         
-        let sourceModifierPopup = NSPopUpButton(frame: NSRect(x: 110, y: 205, width: 150, height: 25))
-        sourceModifierPopup.addItems(withTitles: ["Shift", "Control", "Command", "Option"])
-        let sourceModIndex = KeyCodeMapper.modifierIndex(currentMapping.sourceModifiers)
-        if sourceModIndex < sourceModifierPopup.numberOfItems {
-            sourceModifierPopup.selectItem(at: sourceModIndex)
+        for (index, mapping) in mappingsToEdit.enumerated() {
+            let mappingView = createMappingEditView(for: index, mapping: mapping, yPosition: yPosition)
+            contentView.addSubview(mappingView)
+            yPosition -= 60  // 2行分のスペース + 5ドット増
         }
-        sourceModifierPopup.tag = 1
-        contentView.addSubview(sourceModifierPopup)
         
-        let sourceKeyLabel = NSTextField(labelWithString: "キー:")
-        sourceKeyLabel.frame = NSRect(x: 20, y: 180, width: 80, height: 20)
-        contentView.addSubview(sourceKeyLabel)
-        
-        let sourceKeyPopup = NSPopUpButton(frame: NSRect(x: 110, y: 175, width: 150, height: 25))
-        sourceKeyPopup.addItems(withTitles: ["Space", "Return", "A", "B", "C"])
-        let sourceKeyIndex = KeyCodeMapper.keyIndex(currentMapping.sourceKey)
-        if sourceKeyIndex < sourceKeyPopup.numberOfItems {
-            sourceKeyPopup.selectItem(at: sourceKeyIndex)
-        }
-        sourceKeyPopup.tag = 2
-        contentView.addSubview(sourceKeyPopup)
-        
-        let arrowLabel = NSTextField(labelWithString: "↓ 変換後 ↓")
-        arrowLabel.frame = NSRect(x: 20, y: 145, width: 360, height: 20)
-        arrowLabel.alignment = .center
-        arrowLabel.font = NSFont.systemFont(ofSize: 12)
-        contentView.addSubview(arrowLabel)
-        
-        let titleLabel2 = NSTextField(labelWithString: "出力するキーの組み合わせ:")
-        titleLabel2.frame = NSRect(x: 20, y: 115, width: 360, height: 20)
-        titleLabel2.font = NSFont.boldSystemFont(ofSize: 13)
-        contentView.addSubview(titleLabel2)
-        
-        let targetModifierLabel = NSTextField(labelWithString: "修飾キー:")
-        targetModifierLabel.frame = NSRect(x: 20, y: 85, width: 80, height: 20)
-        contentView.addSubview(targetModifierLabel)
-        
-        let targetModifierPopup = NSPopUpButton(frame: NSRect(x: 110, y: 80, width: 150, height: 25))
-        targetModifierPopup.addItems(withTitles: ["Shift", "Control", "Command", "Option"])
-        let targetModIndex = KeyCodeMapper.modifierIndex(currentMapping.targetModifiers)
-        if targetModIndex < targetModifierPopup.numberOfItems {
-            targetModifierPopup.selectItem(at: targetModIndex)
-        }
-        targetModifierPopup.tag = 3
-        contentView.addSubview(targetModifierPopup)
-        
-        let targetKeyLabel = NSTextField(labelWithString: "キー:")
-        targetKeyLabel.frame = NSRect(x: 20, y: 55, width: 80, height: 20)
-        contentView.addSubview(targetKeyLabel)
-        
-        let targetKeyPopup = NSPopUpButton(frame: NSRect(x: 110, y: 50, width: 150, height: 25))
-        targetKeyPopup.addItems(withTitles: ["Space", "Return", "A", "B", "C"])
-        let targetKeyIndex = KeyCodeMapper.keyIndex(currentMapping.targetKey)
-        if targetKeyIndex < targetKeyPopup.numberOfItems {
-            targetKeyPopup.selectItem(at: targetKeyIndex)
-        }
-        targetKeyPopup.tag = 4
-        contentView.addSubview(targetKeyPopup)
-        
-        let saveButton = NSButton(frame: NSRect(x: 290, y: 20, width: 90, height: 30))
+        let saveButton = NSButton(frame: NSRect(x: 800, y: 15, width: 80, height: 30))
         saveButton.title = "保存"
         saveButton.bezelStyle = .rounded
         saveButton.target = self
-        saveButton.action = #selector(saveKeyMapping(_:))
+        saveButton.action = #selector(saveMultipleKeyMappings(_:))
         contentView.addSubview(saveButton)
         
-        let cancelButton = NSButton(frame: NSRect(x: 190, y: 20, width: 90, height: 30))
+        let cancelButton = NSButton(frame: NSRect(x: 710, y: 15, width: 80, height: 30))
         cancelButton.title = "キャンセル"
         cancelButton.bezelStyle = .rounded
         cancelButton.target = self
@@ -427,47 +386,198 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
     
-    @objc private func saveKeyMapping(_ sender: NSButton) {
+    private func createMappingEditView(for index: Int, mapping: KeyMapping, yPosition: Int) -> NSView {
+        let view = NSView(frame: NSRect(x: 20, y: yPosition - 25, width: 860, height: 55))
+        
+        // チェックボックス（左端）
+        let checkbox = NSButton(frame: NSRect(x: 5, y: 30, width: 20, height: 20))
+        checkbox.setButtonType(.switch)
+        checkbox.state = mapping.enabled ? .on : .off
+        checkbox.tag = 200 + index
+        view.addSubview(checkbox)
+        
+        let label = NSTextField(labelWithString: "マッピング \(index + 1):")
+        label.frame = NSRect(x: 30, y: 30, width: 100, height: 18)
+        label.font = NSFont.boldSystemFont(ofSize: 12)
+        view.addSubview(label)
+        
+        // 1行目：入力 修飾キー1, キー1
+        let sourceModLabel = NSTextField(labelWithString: "入力:")
+        sourceModLabel.frame = NSRect(x: 135, y: 30, width: 40, height: 18)
+        view.addSubview(sourceModLabel)
+        
+        let sourceModPopup = NSPopUpButton(frame: NSRect(x: 180, y: 25, width: 95, height: 25))
+        sourceModPopup.addItems(withTitles: ["Shift", "Control", "Command", "Option", "None"])
+        sourceModPopup.selectItem(at: KeyCodeMapper.modifierIndex(mapping.sourceModifiers))
+        sourceModPopup.tag = 100 + index * 8
+        styleNoneInPopup(sourceModPopup)
+        view.addSubview(sourceModPopup)
+        
+        let sourceKeyPopup = NSPopUpButton(frame: NSRect(x: 280, y: 25, width: 95, height: 25))
+        sourceKeyPopup.addItems(withTitles: ["Space", "Return", "Delete", "Escape", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "None"])
+        sourceKeyPopup.selectItem(at: KeyCodeMapper.keyIndex(mapping.sourceKey))
+        sourceKeyPopup.tag = 101 + index * 8
+        styleNoneInPopup(sourceKeyPopup)
+        view.addSubview(sourceKeyPopup)
+        
+        let arrowLabel = NSTextField(labelWithString: "→")
+        arrowLabel.frame = NSRect(x: 380, y: 30, width: 20, height: 18)
+        arrowLabel.alignment = .center
+        arrowLabel.font = NSFont.systemFont(ofSize: 14)
+        view.addSubview(arrowLabel)
+        
+        // 1行目：出力 修飾キー, キー
+        let targetModLabel = NSTextField(labelWithString: "出力:")
+        targetModLabel.frame = NSRect(x: 405, y: 30, width: 40, height: 18)
+        view.addSubview(targetModLabel)
+        
+        let targetModPopup = NSPopUpButton(frame: NSRect(x: 450, y: 25, width: 95, height: 25))
+        targetModPopup.addItems(withTitles: ["Shift", "Control", "Command", "Option", "None"])
+        targetModPopup.selectItem(at: KeyCodeMapper.modifierIndex(mapping.targetModifiers))
+        targetModPopup.tag = 102 + index * 8
+        styleNoneInPopup(targetModPopup)
+        view.addSubview(targetModPopup)
+        
+        let targetKeyPopup = NSPopUpButton(frame: NSRect(x: 550, y: 25, width: 95, height: 25))
+        targetKeyPopup.addItems(withTitles: ["Space", "Return", "Delete", "Escape", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "None"])
+        targetKeyPopup.selectItem(at: KeyCodeMapper.keyIndex(mapping.targetKey))
+        targetKeyPopup.tag = 103 + index * 8
+        styleNoneInPopup(targetKeyPopup)
+        view.addSubview(targetKeyPopup)
+        
+        // 2行目のラベル
+        let mod2Popup = NSPopUpButton(frame: NSRect(x: 180, y: 0, width: 95, height: 25))
+        mod2Popup.addItems(withTitles: ["Space", "Return", "Delete", "Escape", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "None"])
+        mod2Popup.selectItem(at: 30)  // Default: None
+        mod2Popup.tag = 104 + index * 8
+        styleNoneInPopup(mod2Popup)
+        view.addSubview(mod2Popup)
+        
+        let key2Popup = NSPopUpButton(frame: NSRect(x: 280, y: 0, width: 95, height: 25))
+        key2Popup.addItems(withTitles: ["Space", "Return", "Delete", "Escape", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "None"])
+        key2Popup.selectItem(at: 30)  // Default: None
+        key2Popup.tag = 105 + index * 8
+        styleNoneInPopup(key2Popup)
+        view.addSubview(key2Popup)
+        
+        let targetMod2Popup = NSPopUpButton(frame: NSRect(x: 450, y: 0, width: 95, height: 25))
+        targetMod2Popup.addItems(withTitles: ["Shift", "Control", "Command", "Option", "None"])
+        targetMod2Popup.selectItem(at: 4)  // Default: None
+        targetMod2Popup.tag = 106 + index * 8
+        styleNoneInPopup(targetMod2Popup)
+        view.addSubview(targetMod2Popup)
+        
+        let targetKey2Popup = NSPopUpButton(frame: NSRect(x: 550, y: 0, width: 95, height: 25))
+        targetKey2Popup.addItems(withTitles: ["Space", "Return", "Delete", "Escape", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "None"])
+        targetKey2Popup.selectItem(at: 30)  // Default: None
+        targetKey2Popup.tag = 107 + index * 8
+        styleNoneInPopup(targetKey2Popup)
+        view.addSubview(targetKey2Popup)
+        
+        return view
+    }
+    
+    private func styleNoneInPopup(_ popup: NSPopUpButton) {
+        // 鯉色を設定
+        let grayColor = NSColor(red: 0.5, green: 0.5, blue: 0.5, alpha: 1.0)
+        
+        if let menu = popup.menu {
+            for item in menu.items {
+                if item.title == "None" {
+                    let attributes: [NSAttributedString.Key: Any] = [
+                        .foregroundColor: grayColor
+                    ]
+                    item.attributedTitle = NSAttributedString(string: "None", attributes: attributes)
+                }
+            }
+        }
+    }
+    
+    @objc private func saveMultipleKeyMappings(_ sender: NSButton) {
         guard let window = sender.window,
               let contentView = window.contentView else { return }
         
-        let sourceModifierPopup = contentView.subviews.first { $0.tag == 1 } as? NSPopUpButton
-        let sourceKeyPopup = contentView.subviews.first { $0.tag == 2 } as? NSPopUpButton
-        let targetModifierPopup = contentView.subviews.first { $0.tag == 3 } as? NSPopUpButton
-        let targetKeyPopup = contentView.subviews.first { $0.tag == 4 } as? NSPopUpButton
+        var newMappings: [KeyMapping] = []
         
-        guard let sourceMod = sourceModifierPopup?.titleOfSelectedItem,
-              let sourceK = sourceKeyPopup?.titleOfSelectedItem,
-              let targetMod = targetModifierPopup?.titleOfSelectedItem,
-              let targetK = targetKeyPopup?.titleOfSelectedItem else { return }
-        
-        let newMapping = KeyMapping(
-            sourceModifiers: KeyCodeMapper.modifierFlagFromName(sourceMod),
-            sourceKey: KeyCodeMapper.keyCodeFromName(sourceK),
-            targetModifiers: KeyCodeMapper.modifierFlagFromName(targetMod),
-            targetKey: KeyCodeMapper.keyCodeFromName(targetK)
-        )
+        for index in 0..<4 {
+            let checkbox = findButton(in: contentView, tag: 200 + index)
+            let sourceMod = findPopupButton(in: contentView, tag: 100 + index * 8)
+            let sourceKey = findPopupButton(in: contentView, tag: 101 + index * 8)
+            let targetMod = findPopupButton(in: contentView, tag: 102 + index * 8)
+            let targetKey = findPopupButton(in: contentView, tag: 103 + index * 8)
+            
+            if let sourceMod = sourceMod?.titleOfSelectedItem,
+               let sourceKey = sourceKey?.titleOfSelectedItem,
+               let targetMod = targetMod?.titleOfSelectedItem,
+               let targetKey = targetKey?.titleOfSelectedItem,
+               !(sourceMod.isEmpty || sourceKey.isEmpty || targetMod.isEmpty || targetKey.isEmpty),
+               sourceMod != "None" || sourceKey != "None" {
+                
+                let enabled = (checkbox?.state ?? .off) == .on
+                
+                let mapping = KeyMapping(
+                    sourceModifiers: KeyCodeMapper.modifierFlagFromName(sourceMod),
+                    sourceKey: KeyCodeMapper.keyCodeFromName(sourceKey),
+                    targetModifiers: KeyCodeMapper.modifierFlagFromName(targetMod),
+                    targetKey: KeyCodeMapper.keyCodeFromName(targetKey),
+                    enabled: enabled
+                )
+                newMappings.append(mapping)
+            }
+        }
         
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             
             window.close()
             
-            self.currentMapping = newMapping
-            UserDefaultsManager.save(mapping: self.currentMapping)
+            self.currentMappings = newMappings
+            UserDefaultsManager.save(mappings: self.currentMappings)
             
             self.keyRemapper?.stop()
-            self.keyRemapper = KeyRemapper(mapping: self.currentMapping)
+            self.keyRemapper = KeyRemapper(mappings: self.currentMappings)
             self.keyRemapper?.setFrontmostBundleID(NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
             self.keyRemapper?.setXcodeOnly((self.statusItem?.menu?.items.first { $0.title == "設定" }?.submenu?.items.first { $0.title == "Xcode専用モード" }?.state ?? .off) == .on)
             self.keyRemapper?.setReverseMouseScroll(self.reverseMouseScroll)
             self.keyRemapper?.setEnabled(self.isEnabled)
             self.keyRemapper?.start()
             
-            print("keyRemapper restarted")
+            print("複数マッピング設定が保存されました: \(self.currentMappings.count)個（有効: \(self.currentMappings.filter { $0.enabled }.count)個）")
             
             self.setupMenu()
         }
+    }
+    
+    private func findPopupButton(in view: NSView, tag: Int) -> NSPopUpButton? {
+        for subview in view.subviews {
+            if let popup = subview as? NSPopUpButton, popup.tag == tag {
+                return popup
+            }
+            if let scrollView = subview as? NSScrollView,
+               let documentView = scrollView.contentView.documentView {
+                return findPopupButton(in: documentView, tag: tag)
+            }
+            if let found = findPopupButton(in: subview, tag: tag) {
+                return found
+            }
+        }
+        return nil
+    }
+    
+    private func findButton(in view: NSView, tag: Int) -> NSButton? {
+        for subview in view.subviews {
+            if let button = subview as? NSButton, button.tag == tag {
+                return button
+            }
+            if let scrollView = subview as? NSScrollView,
+               let documentView = scrollView.contentView.documentView {
+                return findButton(in: documentView, tag: tag)
+            }
+            if let found = findButton(in: subview, tag: tag) {
+                return found
+            }
+        }
+        return nil
     }
     
     @objc private func closeSettingsWindow(_ sender: NSButton) {

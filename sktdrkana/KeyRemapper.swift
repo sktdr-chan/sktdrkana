@@ -10,13 +10,13 @@ class KeyRemapper {
     private var isEnabled = true
     private var xcodeOnly = false
     private var reverseMouseScroll = false
-    private var mapping: KeyMapping
+    private var mappings: [KeyMapping]
     
     private let stateQueue = DispatchQueue(label: "KeyRemapper.state.queue", qos: .userInteractive)
     private var frontmostBundleID: String?
     
-    init(mapping: KeyMapping) {
-        self.mapping = mapping
+    init(mappings: [KeyMapping]) {
+        self.mappings = mappings
     }
     
     func start() {
@@ -61,7 +61,7 @@ class KeyRemapper {
         CFRunLoopAddSource(runLoop, source, .commonModes)
         CGEvent.tapEnable(tap: eventTap, enable: true)
         
-        print("sktdrkanaが起動しました")
+        print("sktdrkanaが起動しました (\(mappings.count)個のマッピング)")
         
         CFRunLoopRun()
         
@@ -111,28 +111,36 @@ class KeyRemapper {
         let flags = event.flags
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
         
-        if keyCode == mapping.sourceKey {
-            let hasRequiredModifiers = checkModifiers(flags: flags, required: mapping.sourceModifiers)
+        // すべてのマッピングをチェック
+        for mapping in mappings {
+            // enabled が false のマッピングはスキップ
+            if !mapping.enabled {
+                continue
+            }
             
-            if hasRequiredModifiers {
-                guard let newEvent = event.copy() else {
-                    return Unmanaged.passUnretained(event)
+            if keyCode == mapping.sourceKey {
+                let hasRequiredModifiers = checkModifiers(flags: flags, required: mapping.sourceModifiers)
+                
+                if hasRequiredModifiers {
+                    guard let newEvent = event.copy() else {
+                        return Unmanaged.passUnretained(event)
+                    }
+                    
+                    var newFlags = flags
+                    newFlags.remove(.maskShift)
+                    newFlags.remove(.maskControl)
+                    newFlags.remove(.maskCommand)
+                    newFlags.remove(.maskAlternate)
+                    newFlags.insert(mapping.targetModifiers)
+                    
+                    newEvent.flags = newFlags
+                    
+                    if mapping.sourceKey != mapping.targetKey {
+                        newEvent.setIntegerValueField(.keyboardEventKeycode, value: Int64(mapping.targetKey))
+                    }
+                    
+                    return Unmanaged.passRetained(newEvent)
                 }
-                
-                var newFlags = flags
-                newFlags.remove(.maskShift)
-                newFlags.remove(.maskControl)
-                newFlags.remove(.maskCommand)
-                newFlags.remove(.maskAlternate)
-                newFlags.insert(mapping.targetModifiers)
-                
-                newEvent.flags = newFlags
-                
-                if mapping.sourceKey != mapping.targetKey {
-                    newEvent.setIntegerValueField(.keyboardEventKeycode, value: Int64(mapping.targetKey))
-                }
-                
-                return Unmanaged.passRetained(newEvent)
             }
         }
         
@@ -169,6 +177,10 @@ class KeyRemapper {
         stateQueue.async {
             self.frontmostBundleID = id
         }
+    }
+    
+    func updateMappings(_ mappings: [KeyMapping]) {
+        self.mappings = mappings
     }
     
     func stop() {
