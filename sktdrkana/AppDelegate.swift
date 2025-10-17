@@ -339,8 +339,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     
     @objc private func openKeyMappingSettings() {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 720, height: 400),
-            styleMask: [.titled, .closable],
+            contentRect: NSRect(x: 0, y: 0, width: 720, height: 780),
+            styleMask: [.titled, .closable, .resizable],
             backing: .buffered,
             defer: false
         )
@@ -351,15 +351,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         self.settingsWindow = window
         
         let contentView = NSView(frame: window.contentView!.bounds)
+        contentView.autoresizingMask = [.width, .height]
         
-        let titleLabel = NSTextField(labelWithString: "キーマッピング設定（最大4個まで設定可能）")
-        titleLabel.frame = NSRect(x: 20, y: 360, width: 760, height: 20)
+        let titleLabel = NSTextField(labelWithString: "キーマッピング設定（最大10個まで設定可能）")
+        titleLabel.frame = NSRect(x: 20, y: 740, width: 760, height: 20)
         titleLabel.font = NSFont.boldSystemFont(ofSize: 13)
+        titleLabel.autoresizingMask = [.minYMargin]
         contentView.addSubview(titleLabel)
         
-        var yPosition = 305  // 上から 305 の位置から開始
-        // 常に4つのマッピング欄を表示
-        let mappingsToEdit = (currentMappings + Array(repeating: KeyMapping.defaultMapping, count: max(0, 4 - currentMappings.count))).prefix(4)
+        var yPosition = 685  // 上から開始位置
+        // 常に10個のマッピング欄を表示
+        let mappingsToEdit = (currentMappings + Array(repeating: KeyMapping.defaultMapping, count: max(0, 10 - currentMappings.count))).prefix(10)
         
         for (index, mapping) in mappingsToEdit.enumerated() {
             let mappingView = createMappingEditView(for: index, mapping: mapping, yPosition: yPosition)
@@ -367,18 +369,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             yPosition -= 60  // 2行分のスペース + 5ドット増
         }
         
-        let saveButton = NSButton(frame: NSRect(x: 620, y: 15, width: 80, height: 30))
+        let saveButton = NSButton(frame: NSRect(x: 620, y: 10, width: 80, height: 30))
         saveButton.title = "保存"
         saveButton.bezelStyle = .rounded
         saveButton.target = self
         saveButton.action = #selector(saveMultipleKeyMappings(_:))
+        saveButton.autoresizingMask = [.minYMargin, .minXMargin]
         contentView.addSubview(saveButton)
         
-        let cancelButton = NSButton(frame: NSRect(x: 530, y: 15, width: 80, height: 30))
+        let cancelButton = NSButton(frame: NSRect(x: 530, y: 10, width: 80, height: 30))
         cancelButton.title = "キャンセル"
         cancelButton.bezelStyle = .rounded
         cancelButton.target = self
         cancelButton.action = #selector(closeSettingsWindow(_:))
+        cancelButton.autoresizingMask = [.minYMargin, .minXMargin]
         contentView.addSubview(cancelButton)
         
         window.contentView = contentView
@@ -482,7 +486,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         var newMappings: [KeyMapping] = []
         
-        for index in 0..<4 {
+        for index in 0..<10 {
             let checkbox = findButton(in: contentView, tag: 200 + index)
             let enabled = (checkbox?.state ?? .off) == .on
             
