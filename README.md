@@ -21,6 +21,7 @@ Add setting to disable macOS accent character menu on key press-and-hold.
 Release v0.6: 長押し文字選択メニュー無効化機能を追加
 
 キー長押し時のアクセント文字メニューを無効化する設定を追加。
+```
 
 # download
 別サイト（作者所有）からダウンロードしてくだい。
