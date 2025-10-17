@@ -34,6 +34,7 @@ struct KeyMapping {
 struct UserDefaultsManager {
     private static let mappingsKey = "keyMappings"
     private static let reverseMouseScrollKey = "reverseMouseScroll"
+    private static let disablePressAndHoldKey = "disablePressAndHold"
     
     static func save(mappings: [KeyMapping]) {
         let defaults = UserDefaults.standard
@@ -56,6 +57,31 @@ struct UserDefaultsManager {
     
     static func loadReverseMouseScroll() -> Bool {
         return UserDefaults.standard.bool(forKey: reverseMouseScrollKey)
+    }
+    
+    static func saveDisablePressAndHold(_ enabled: Bool) {
+        UserDefaults.standard.set(enabled, forKey: disablePressAndHoldKey)
+        
+        // シェルスクリプトを使用して確実にグローバル設定を変更
+        let script = enabled ? 
+            "defaults write -g ApplePressAndHoldEnabled -bool false" :
+            "defaults delete -g ApplePressAndHoldEnabled 2>/dev/null || defaults write -g ApplePressAndHoldEnabled -bool true"
+        
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/sh")
+        task.arguments = ["-c", script]
+        
+        do {
+            try task.run()
+            task.waitUntilExit()
+        } catch {
+            // エラーが発生した場合のみログ出力
+            print("defaults コマンドの実行に失敗: \(error)")
+        }
+    }
+    
+    static func loadDisablePressAndHold() -> Bool {
+        return UserDefaults.standard.bool(forKey: disablePressAndHoldKey)
     }
     
     static func load() -> [KeyMapping] {

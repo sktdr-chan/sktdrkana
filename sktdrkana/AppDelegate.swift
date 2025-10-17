@@ -8,6 +8,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var isEnabled = true
     private var currentMappings: [KeyMapping] = []
     private var reverseMouseScroll = false
+    private var disablePressAndHold = false
     private var settingsWindow: NSWindow?
     private var aboutWindow: NSWindow?
     private var workspaceObserver: NSObjectProtocol?
@@ -22,6 +23,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         currentMappings = loadedMappings
         reverseMouseScroll = UserDefaultsManager.loadReverseMouseScroll()
+        disablePressAndHold = UserDefaultsManager.loadDisablePressAndHold()
         
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         
@@ -112,6 +114,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
         reverseScrollItem.state = reverseMouseScroll ? .on : .off
         settingsMenu.addItem(reverseScrollItem)
+        
+        let disablePressAndHoldItem = NSMenuItem(
+            title: "長押しで表示される文字選択メニューを無効化",
+            action: #selector(toggleDisablePressAndHold),
+            keyEquivalent: ""
+        )
+        disablePressAndHoldItem.state = disablePressAndHold ? .on : .off
+        settingsMenu.addItem(disablePressAndHoldItem)
         
         settingsMenu.addItem(NSMenuItem.separator())
         
@@ -305,6 +315,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         sender.state = reverseMouseScroll ? .on : .off
         UserDefaultsManager.saveReverseMouseScroll(reverseMouseScroll)
         keyRemapper?.setReverseMouseScroll(reverseMouseScroll)
+    }
+    
+    @objc private func toggleDisablePressAndHold(_ sender: NSMenuItem) {
+        disablePressAndHold.toggle()
+        sender.state = disablePressAndHold ? .on : .off
+        UserDefaultsManager.saveDisablePressAndHold(disablePressAndHold)
+        
+        let alert = NSAlert()
+        alert.messageText = "設定が変更されました"
+        alert.informativeText = "変更を有効にするには、対象のアプリケーションを再起動してください。\n新しく起動するアプリには自動的に適用されます。\n\n※Mac全体の再起動は不要です。"
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
     
     @objc private func toggleLaunchAtLogin(_ sender: NSMenuItem) {
