@@ -9,6 +9,18 @@ v0.4でキーリマップを2入力2出力の1セットから、4入力4出力4�
 
 作者サイトになるべく最新状態のアプリの使い方や外見は載せるようにしておきますので、そちらもよかったら見てください。
 
+### 英語
+```
+Release v0.6: Add press-and-hold disable option
+
+Add setting to disable macOS accent character menu on key press-and-hold.
+```
+
+### 日本語
+```
+Release v0.6: 長押し文字選択メニュー無効化機能を追加
+
+キー長押し時のアクセント文字メニューを無効化する設定を追加。
 
 # download
 別サイト（作者所有）からダウンロードしてくだい。
